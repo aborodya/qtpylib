@@ -16,6 +16,14 @@ ATR
     bars['atr'] = bars.atr(window=14 [, exp=False])
     ...
 
+Awesome Oscillator
+------------------
+
+.. code:: python
+
+    bars['ao'] = bars.awesome_oscillator(weighted=False, fast=5, slow=34])
+    ...
+
 
 Bollinger Bands
 ---------------
@@ -60,11 +68,16 @@ Crossed Above/Below
     bars['sma'] = bars['close'].rolling_mean(10)
 
     if bars['close'].crossed_above(bars['sma']):
+        # crossed above
         ...
 
-    if bars['close'].crossed_below(bars['sma']):
+    if bars['rsi'].crossed_below(10):
+        # crossed below
         ...
 
+    if bars['close'].crossed(bars['open']):
+        # crossed either above or below
+        ...
 
 Heikin Ashi
 -----------
@@ -183,6 +196,23 @@ Typical Price
     bars['typical'] = bars.typical_price()
     ...
 
+
+Traders Dynamic Index (TDI)
+---------------------------------
+.. code:: python
+
+    bars['typical'] = bars['close'].tdi([rsi_len=13, bollinger_len=34,
+            rsi_smoothing=2, rsi_signal_len=7, bollinger_std=1.6185])
+    ...
+
+
+Price Volume Trend
+------------------
+
+.. code:: python
+
+    bars['pvt'] = bars.pvt()
+    ...
 
 
 Rolling Minimum
@@ -308,7 +338,7 @@ Stochastics
 
 .. code:: python
 
-    bars['stoch'] = bars.stoch(window=14, slow=False, slow_ma=3)
+    bars['stoch'] = bars.stoch([window=14, d=3, k=3, fast=True])
     ...
 
 
@@ -328,6 +358,15 @@ VWAP
 .. code:: python
 
     bars['vwap'] = bars.vwap(bars)
+    ...
+
+
+Z-Score
+-------
+
+.. code:: python
+
+    bars['zscore'] = bars.zscore(window=20, stds=1, col='close')
     ...
 
 

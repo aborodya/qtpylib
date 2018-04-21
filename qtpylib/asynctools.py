@@ -21,11 +21,17 @@
 
 from threading import Thread, Semaphore
 from multiprocessing import Process, cpu_count
-from sys import exit as sysexit
+from sys import exit as sysexit, version_info as sys_version_info
 from os import _exit as osexit
 from time import sleep, time
 
 # =============================================
+# check min, python version
+if sys_version_info < (3, 4):
+    raise SystemError("QTPyLib requires Python version >= 3.4")
+# =============================================
+
+
 class multitasking():
     """
     Non-blocking Python methods using decorators
@@ -37,9 +43,9 @@ class multitasking():
     __TASKS__ = []
 
     # processing
-    __CPU_CORES__   = cpu_count()
-    __POOLS__       = {}
-    __POOL_NAME__   = "Main"
+    __CPU_CORES__ = cpu_count()
+    __POOLS__ = {}
+    __POOL_NAME__ = "Main"
 
     @classmethod
     def getPool(cls, name=None):
@@ -57,8 +63,10 @@ class multitasking():
 
         cls.__POOL_NAME__ = name
 
-        try: threads = int(threads)
-        except: threads = 1
+        try:
+            threads = int(threads)
+        except:
+            threads = 1
 
         # 1 thread is no threads
         if threads < 2:
@@ -121,8 +129,11 @@ class multitasking():
             osexit(0)
 
 # =============================================
+
+
 class RecurringTask(Thread):
     """Calls a function at a sepecified interval."""
+
     def __init__(self, func, interval_sec, init_sec=0, *args, **kwargs):
         """Call `func` every `interval_sec` seconds.
 
@@ -145,12 +156,12 @@ class RecurringTask(Thread):
         """
 
         # threading.Thread.__init__(self, *args, **kwargs) # For some reason super() doesn't work
-        super().__init__(*args, **kwargs) # Works!
-        self._func        = func
+        super().__init__(*args, **kwargs)  # Works!
+        self._func = func
         self.interval_sec = interval_sec
-        self.init_sec     = init_sec
-        self._running     = True
-        self._functime    = None # Time the next call should be made
+        self.init_sec = init_sec
+        self._running = True
+        self._functime = None  # Time the next call should be made
 
         self.start()
 
@@ -172,4 +183,3 @@ class RecurringTask(Thread):
     def stop(self):
         """Stop the recurring task."""
         self._running = False
-

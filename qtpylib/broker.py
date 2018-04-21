@@ -29,6 +29,7 @@ import os
 import pandas as pd
 import pymysql
 import time
+import sys
 
 from datetime import datetime, timedelta
 
@@ -45,8 +46,14 @@ getcontext().prec = 5
 from abc import ABCMeta
 
 # =============================================
+# check min, python version
+if sys.version_info < (3, 4):
+    raise SystemError("QTPyLib requires Python version >= 3.4")
+
+# =============================================
 tools.createLogger(__name__)
 # =============================================
+
 
 class Broker():
     """Broker class initilizer (abstracted, parent class of ``Algo``)
@@ -88,7 +95,10 @@ class Broker():
         instrument_tuples_dict = {}
         for instrument in instruments:
             try:
-                instrument = tools.create_ib_tuple(instrument)
+                if isinstance(instrument, ezibpy.utils.Contract):
+                    instrument = self.ibConn.contract_to_tuple(instrument)
+                else:
+                    instrument = tools.create_ib_tuple(instrument)
                 contractString = self.ibConn.contractString(instrument)
                 instrument_tuples_dict[contractString] = instrument
                 self.ibConn.createContract(instrument)
@@ -97,6 +107,7 @@ class Broker():
 
         self.instruments = instrument_tuples_dict
         self.symbols = list(self.instruments.keys())
+        self.instrument_combos = {}
 
         # -----------------------------------
         # track orders & trades
@@ -159,6 +170,47 @@ class Broker():
         atexit.register(self._on_exit)
 
 
+    # ---------------------------------------
+    def add_instruments(self, *instruments):
+        """ add instruments after initialization """
+        for instrument in instruments:
+            if isinstance(instrument, ezibpy.utils.Contract):
+                instrument = self.ibConn.contract_to_tuple(instrument)
+                contractString = self.ibConn.contractString(instrument)
+                self.instruments[contractString] = instrument
+                self.ibConn.createContract(instrument)
+
+        self.symbols = list(self.instruments.keys())
+
+
+    # ---------------------------------------
+    """
+    instrument group methods
+    used with spreads to get the group members (contratc legs) as symbols
+    """
+    def register_combo(self, parent, legs):
+        """ add contracts to groups """
+        parent = self.ibConn.contractString(parent)
+        legs_dict = {}
+        for leg in legs:
+            leg = self.ibConn.contractString(leg)
+            legs_dict[leg] = self.get_instrument(leg)
+        self.instrument_combos[parent] = legs_dict
+
+    def get_combo(self, symbol):
+        """ get group by child symbol """
+        for parent, legs in self.instrument_combos.items():
+            if symbol == parent or symbol in legs.keys():
+                return {
+                    "parent": self.get_instrument(parent),
+                    "legs": legs,
+                }
+        return {
+                "parent": None,
+                "legs": {},
+            }
+
+
     # -------------------------------------------
     def _on_exit(self):
         self.log_broker.info("Algo stopped...")
@@ -215,16 +267,17 @@ class Broker():
                     try:
                         if self.orders.pending[symbol]['orderId'] == msg.orderId:
                             del self.orders.pending[symbol]
-                    except: pass
+                    except:
+                        pass
                 return
 
             # continue...
 
-            order    = self.ibConn.orders[msg.orderId]
+            order = self.ibConn.orders[msg.orderId]
 
             # print("***********************\n\n", order, "\n\n***********************")
-            orderId  = msg.orderId
-            symbol   = order["symbol"]
+            orderId = msg.orderId
+            symbol  = order["symbol"]
 
             try:
                 try:
@@ -238,7 +291,8 @@ class Broker():
             # update pending order to the time actually submitted
             if order["status"] in ["OPENED", "SUBMITTED"]:
                 if orderId in self.orders.pending_ttls:
-                    self._update_pending_order(symbol, orderId, self.orders.pending_ttls[orderId], quantity)
+                    self._update_pending_order(symbol, orderId,
+                        self.orders.pending_ttls[orderId], quantity)
 
             elif order["status"] == "FILLED":
                 self._update_order_history(symbol, orderId, quantity, filled=True)
@@ -249,7 +303,6 @@ class Broker():
                 # filled
                 time.sleep(0.005)
                 self.on_fill(self.get_instrument(order['symbol']), order)
-
 
     # ---------------------------------------
     def _register_trade(self, order):
@@ -295,7 +348,7 @@ class Broker():
             return
 
         # trade identifier
-        tradeId = self.strategy.upper()+'_'+symbol.upper()
+        tradeId = self.strategy.upper() + '_' + symbol.upper()
         tradeId = hashlib.sha1(tradeId.encode()).hexdigest()
 
         # existing trade?
@@ -333,21 +386,23 @@ class Broker():
 
             # calculate trade duration
             try:
-                delta = int((self.active_trades[tradeId]['exit_time']-self.active_trades[tradeId]['entry_time']).total_seconds())
+                delta = int((self.active_trades[tradeId]['exit_time'] -
+                             self.active_trades[tradeId]['entry_time']).total_seconds())
                 days, remainder = divmod(delta, 86400)
                 hours, remainder = divmod(remainder, 3600)
                 minutes, seconds = divmod(remainder, 60)
                 duration = ('%sd %sh %sm %ss' % (days, hours, minutes, seconds))
-                self.active_trades[tradeId]['duration'] = duration.replace("0d ", "").replace("0h ", "").replace("0m ", "")
+                self.active_trades[tradeId]['duration'] = duration.replace(
+                    "0d ", "").replace("0h ", "").replace("0m ", "")
             except:
                 pass
 
             trade = self.active_trades[tradeId]
             if trade['entry_price'] > 0 and trade['position'] == 0:
                 if trade['direction'] == "SELL":
-                    pnl = trade['entry_price']-trade['exit_price']
+                    pnl = trade['entry_price'] - trade['exit_price']
                 else:
-                    pnl = trade['exit_price']-trade['entry_price']
+                    pnl = trade['exit_price'] - trade['entry_price']
 
                 pnl = tools.to_decimal(pnl)
                 # print("1)", pnl)
@@ -356,7 +411,6 @@ class Broker():
         # print("\n\n-----------------")
         # print(self.active_trades[tradeId])
         # print("-----------------\n\n")
-
 
         # get trade
         trade = self.active_trades[tradeId].copy()
@@ -377,7 +431,6 @@ class Broker():
 
         # return trade
         return trade
-
 
     # ---------------------------------------
     def log_trade(self, trade):
@@ -409,7 +462,7 @@ class Broker():
             except: pass
 
             # all strings
-            for k,v in trade.items():
+            for k, v in trade.items():
                 if v is not None:
                     trade[k] = str(v)
 
@@ -430,30 +483,30 @@ class Broker():
             except:
                 pass
 
-
         if self.trade_log_dir:
-            self.trade_log_dir = (self.trade_log_dir+'/').replace('//', '/')
-            trade_log_path = self.trade_log_dir+self.strategy.lower()+"_"+datetime.now().strftime('%Y%m%d')+".csv"
+            self.trade_log_dir = (self.trade_log_dir + '/').replace('//', '/')
+            trade_log_path = self.trade_log_dir + self.strategy.lower() + "_" + \
+                datetime.now().strftime('%Y%m%d') + ".csv"
 
             # convert None to empty string !!
-            trade.update((k, '') for k,v in trade.items() if v is None)
+            trade.update((k, '') for k, v in trade.items() if v is None)
 
             # create df
             trade_df = pd.DataFrame(index=[0], data=trade)[[
-                'strategy','symbol','direction','quantity','entry_time','exit_time','exit_reason',
-                'order_type','market_price','target','stop','entry_price','exit_price','realized_pnl'
+                'strategy', 'symbol', 'direction', 'quantity', 'entry_time', 'exit_time', 'exit_reason',
+                'order_type', 'market_price', 'target', 'stop', 'entry_price', 'exit_price', 'realized_pnl'
             ]]
 
             if os.path.exists(trade_log_path):
                 trades = pd.read_csv(trade_log_path, header=0)
                 trades = trades.append(trade_df, ignore_index=True)
-                trades.drop_duplicates(['entry_time', 'symbol', 'strategy'], keep="last", inplace=True)
+                trades.drop_duplicates(['entry_time', 'symbol', 'strategy'],
+                                       keep="last", inplace=True)
                 trades.to_csv(trade_log_path, header=True, index=False)
                 tools.chmod(trade_log_path)
             else:
                 trade_df.to_csv(trade_log_path, header=True, index=False)
                 tools.chmod(trade_log_path)
-
 
     # ---------------------------------------
     def active_order(self, symbol, order_type="STOP"):
@@ -463,7 +516,6 @@ class Broker():
                 if order['order_type'].upper() == order_type.upper():
                     return order
         return None
-
 
     # ---------------------------------------
     def _get_locals(self, locals):
@@ -475,8 +527,8 @@ class Broker():
         limit_price=0, expiry=0, orderId=0, target=0, initial_stop=0,
         trail_stop_at=0, trail_stop_by=0, stop_limit=False, **kwargs):
 
-
-        self.log_broker.debug('CREATE ORDER: %s %4d %s %s', direction, quantity, symbol, dict(locals(), **kwargs))
+        self.log_broker.debug('CREATE ORDER: %s %4d %s %s', direction,
+                              quantity, symbol, dict(locals(), **kwargs))
 
         # force BUY/SELL (not LONG/SHORT)
         direction = direction.replace("LONG", "BUY").replace("SHORT", "SELL")
@@ -521,8 +573,9 @@ class Broker():
             # simple order
             order = self.ibConn.createOrder(order_quantity, limit_price,
                 fillorkill=fillorkill, iceberg=iceberg, tif=tif)
-            orderId  = self.ibConn.placeOrder(contract, order)
-            self.log_broker.debug('PLACE ORDER: %s %s', tools.contract_to_dict(contract), tools.order_to_dict(order))
+            orderId = self.ibConn.placeOrder(contract, order)
+            self.log_broker.debug('PLACE ORDER: %s %s', tools.contract_to_dict(
+                contract), tools.order_to_dict(order))
         else:
             # bracket order
             order = self.ibConn.createBracketOrder(contract, order_quantity,
@@ -550,7 +603,6 @@ class Broker():
             self._update_order_history(symbol=symbol, orderId=order["stopOrderId"],
                 quantity=-order_quantity, order_type='STOP', parentId=order["entryOrderId"])
 
-
         # have original params available for FILL event
         self.orders.recent[orderId] = self._get_locals(locals())
         self.orders.recent[orderId]['targetOrderId'] = 0
@@ -560,12 +612,13 @@ class Broker():
             self.orders.recent[orderId]['stopOrderId'] = order["stopOrderId"]
         # append market price at the time of order
         try:
-            self.orders.recent[orderId]['price'] = self.ticks[self.ticks['symbol']==symbol]['last'].values[-1]
+            self.orders.recent[orderId]['price'] = self.ticks[
+                self.ticks['symbol'] == symbol]['last'].values[-1]
         except:
             self.orders.recent[orderId]['price'] = 0
 
         # add orderId / ttl to (auto-adds to history)
-        expiry = expiry*1000 if expiry > 0 else 60000 # 1min
+        expiry = expiry * 1000 if expiry > 0 else 60000  # 1min
         self._update_pending_order(symbol, orderId, expiry, order_quantity)
 
     # ---------------------------------------
@@ -579,10 +632,12 @@ class Broker():
         if entry is not None:
             self.modify_order(symbol, orderId, limit_price=entry, quantity=quantity)
         if target is not None:
-            self.modify_order(symbol, order_group['targetOrderId'], limit_price=target, quantity=quantity)
+            self.modify_order(symbol, order_group['targetOrderId'],
+                limit_price=target, quantity=quantity)
         if stop is not None:
             stop_quantity = -quantity if quantity is not None else None
-            self.modify_order(symbol, order_group['stopOrderId'], limit_price=stop, quantity=stop_quantity)
+            self.modify_order(symbol, order_group['stopOrderId'],
+                limit_price=stop, quantity=stop_quantity)
 
     # ---------------------------------------
     def modify_order(self, symbol, orderId, quantity=None, limit_price=None):
@@ -619,7 +674,7 @@ class Broker():
 
     # ---------------------------------------
     def _milliseconds_delta(self, delta):
-        return delta.days*86400000 + delta.seconds*1000 + delta.microseconds/1000
+        return delta.days * 86400000 + delta.seconds * 1000 + delta.microseconds / 1000
 
     # ---------------------------------------
     def _cancel_orphan_orders(self, symbol, orderId):
@@ -639,7 +694,7 @@ class Broker():
             orderId    = pending[symbol]["orderId"]
             expiration = pending[symbol]["expires"]
 
-            delta = expiration-datetime.now()
+            delta = expiration - datetime.now()
             delta = self._milliseconds_delta(delta)
 
             # cancel order if expired
@@ -688,8 +743,6 @@ class Broker():
             "filled": filled,
             "parentId": parentId
         }
-
-
 
     # ---------------------------------------
     # UTILITY FUNCTIONS
@@ -761,11 +814,11 @@ class Broker():
                 "averageCost":   0.0,
                 "unrealizedPNL": 0.0,
                 "realizedPNL":   0.0,
+                "totalPNL":      0.0,
                 "account":       None
             }
 
         return self.ibConn.portfolio
-
 
     # ---------------------------------------
     def get_pending_orders(self, symbol=None):
@@ -776,7 +829,6 @@ class Broker():
             return {}
 
         return self.orders.pending
-
 
     # ---------------------------------------
     def get_trades(self, symbol=None):
@@ -807,7 +859,8 @@ class Broker():
             df['quantity']     = df['quantity'].astype(int)
 
             try:
-                df.loc[:, 'last'] = float(self.ticks[self.ticks['symbol']==symbol]['last'].values[-1])
+                df.loc[:, 'last'] = float(
+                    self.ticks[self.ticks['symbol'] == symbol]['last'].values[-1])
             except:
                 df.loc[:, 'last'] = 0
 
@@ -815,14 +868,14 @@ class Broker():
             df['unrealized_pnl'] = np.where(df['direction']=="SHORT",
                 df['entry_price']-df['last'], df['last']-df['entry_price'])
 
-            df.loc[df['closed']==True, 'unrealized_pnl'] = 0
+            df.loc[df['closed'] == True, 'unrealized_pnl'] = 0
 
             # drop index column
             df.drop('index', axis=1, inplace=True)
 
             # get single symbol
             if symbol is not None:
-                df = df[ df['symbol']==symbol.split("_")[0] ]
+                df = df[df['symbol'] == symbol.split("_")[0]]
                 df.loc[:, 'symbol'] = symbol
 
         # return

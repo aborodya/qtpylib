@@ -1,6 +1,91 @@
 Release Notes
 =============
 
+*January 12, 2018*
+
+1.5.77
+-----------
+- Check for ``dbskip`` on ``Blotter.mysql_connect()`` (issue 75)
+- Changed numpy.std() estimator bias (ddof = 1)
+- Fixed Heiken-Ashi bar calculation
+- Added Zero-lag SMA/EMA/HMA
+- Misc bugfixes and code improvements
+
+
+*September 25, 2017*
+
+1.5.76
+-----------
+- Fixed possible miscalculation of local machine's timezone (hotfix)
+
+1.5.75
+-----------
+- Futures spec is now downloading from `qtpylib.io <http://qtpylib.io/resources/futures_spec.csv>`_ (updated daily)
+- Technical indicators made faster
+- Added ``tools.multi_shift`` method to for shifting multiple rows in Pandas DataFrames
+- Misc bugfixes and code improvements
+
+*July 26, 2017*
+
+1.5.74
+-----------
+- Checks for ``Python >= 3.4`` before running
+- Requires ``ezIBpy >= 1.12.56``
+- Option to group contracts togther (groundwork for spreads / combo orders)
+- Allows to add contracts/symbols to ``Algo`` *after* initialization via ``Broker.add_instruments(...)``
+- ``Algo`` instruments now accepts IB Contracts as instruments
+- Instrument's ``get_ticks()`` and ``get_bars()`` returns ``None`` when empty and reqested in ``dict`` format
+- Added ``instrument.get_price()`` and ``instrument.price`` (returns current market price)
+- Added ``instrument.pnl_in_range(min, max)`` method to the instrument object
+- Added ``TotalPNL`` to the portfolio object (``unrealizedPNL + realizedPNL``)
+- Added option to get timezone as delta in ``tools.get_timezone()``
+- Better Heikin-Ashi candle formula (fixed first candle's open calculation)
+- Improved Stochastic indicator
+- Added Awesome Oscillator indicator
+- Added TDI (Traders Dynamic Index) indicator
+- Added ``crossed()`` indicator (returns ``True`` if first series crosses above or below second series)
+- Crossing indicators/methods works with numbers as 2nd series (ie ``bars['close'].crossed_above(30)``)
+- Misc bugfixes, code improvements, cleanup and abstraction
+
+
+*May 7, 2017*
+
+1.5.73
+-----------
+- Requires ezIBpy >= 1.12.51
+
+1.5.72
+-----------
+- Better PEP8 compliance
+- Checking for Python version >= 3.4
+- Upgraded to Twilio version >= 6.0.0
+- Improved Stochastic indicator
+- Added Awesome Oscillator and TDI indicators
+- Misc bugfixes, code improvements, cleanup and abstraction
+
+
+*March 25, 2017*
+
+1.5.71
+-----------
+- Fixed ``pip`` installer
+
+1.5.7
+-----------
+- Fixed minor bug in machine timeozone detection
+
+*February 26, 2017*
+
+1.5.6
+-----------
+- Added 2 Indicators: PVT (Price Volume Trend) and Z-Score
+- Fixed resample bug when using local timezones (merge pull request #55)
+
+*February 6, 2017*
+
+1.5.59
+-----------
+- Requires ezIBpy >= 1.12.45 (fixes a few open issues)
 
 *December 31, 2016*
 

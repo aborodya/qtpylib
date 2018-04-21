@@ -22,6 +22,14 @@
 from qtpylib import futures
 import math
 from pandas import concat as pd_concat
+import sys
+
+# =============================================
+# check min, python version
+if sys.version_info < (3, 4):
+    raise SystemError("QTPyLib requires Python version >= 3.4")
+# =============================================
+
 
 class Instrument(str):
     """A string subclass that provides easy access to misc
@@ -44,9 +52,9 @@ class Instrument(str):
     def _get_symbol_dataframe(df, symbol):
         try:
             # this produce a "IndexingError using Boolean Indexing" (on rare occasions)
-            return df[ (df['symbol']==symbol) | (df['symbol_group']==symbol) ].copy()
+            return df[(df['symbol'] == symbol) | (df['symbol_group'] == symbol)].copy()
         except:
-            df = pd_concat([ df[df['symbol']==symbol], df[df['symbol_group']==symbol] ])
+            df = pd_concat([df[df['symbol'] == symbol], df[df['symbol_group'] == symbol]])
             df.loc[:, '_idx_'] = df.index
             return df.drop_duplicates(subset=['_idx_'], keep='last').drop('_idx_', axis=1)
 
@@ -75,13 +83,15 @@ class Instrument(str):
         #     bars = bars[-lookback:]
 
         if len(bars.index) > 0 and bars['asset_class'].values[-1] not in ("OPT", "FOP"):
-            bars.drop(bars.columns[bars.columns.str.startswith('opt_')].tolist(), inplace=True, axis=1)
+            bars.drop(bars.columns[
+                bars.columns.str.startswith('opt_')].tolist(),
+                inplace=True, axis=1)
 
         if as_dict:
             bars.loc[:, 'datetime'] = bars.index
             bars = bars.to_dict(orient='records')
             if lookback == 1:
-                bars = bars[0]
+                bars = bars[0] if len(bars) > 0 else None
 
         return bars
 
@@ -112,13 +122,15 @@ class Instrument(str):
         #     ticks = ticks[-lookback:]
 
         if len(ticks.index) > 0 and ticks['asset_class'].values[-1] not in ("OPT", "FOP"):
-            ticks.drop(ticks.columns[ticks.columns.str.startswith('opt_')].tolist(), inplace=True, axis=1)
+            ticks.drop(ticks.columns[
+                ticks.columns.str.startswith('opt_')].tolist(),
+                inplace=True, axis=1)
 
         if as_dict:
             ticks.loc[:, 'datetime'] = ticks.index
             ticks = ticks.to_dict(orient='records')
             if lookback == 1:
-                ticks = ticks[0]
+                ticks = ticks[0] if len(ticks) > 0 else None
 
         return ticks
 
@@ -126,6 +138,12 @@ class Instrument(str):
     def get_tick(self):
         """ Shortcut to self.get_ticks(lookback=1, as_dict=True) """
         return self.get_ticks(lookback=1, as_dict=True)
+
+    # ---------------------------------------
+    def get_price(self):
+        """ Shortcut to self.get_ticks(lookback=1, as_dict=True)['last'] """
+        tick = self.get_ticks(lookback=1, as_dict=True)
+        return None if tick is None else tick['last']
 
     # ---------------------------------------
     def get_quote(self):
@@ -193,7 +211,6 @@ class Instrument(str):
                 time in force (DAY, GTC, IOC, GTD). default is ``DAY``
         """
         self.parent.order(direction.upper(), self, quantity, **kwargs)
-
 
     # ---------------------------------------
     def cancel_order(self, orderId):
@@ -348,7 +365,7 @@ class Instrument(str):
         """
         return self.parent.get_contract_details(self)
 
-        # ---------------------------------------
+    # ---------------------------------------
     def get_tickerId(self):
         """Get contract's tickerId for this instrument
 
@@ -357,6 +374,16 @@ class Instrument(str):
                 IB Contract's tickerId
         """
         return self.parent.get_tickerId(self)
+
+    # ---------------------------------------
+    def get_combo(self):
+        """Get instrument's group if part of an instrument group
+
+        :Retruns:
+            tickerId : int
+                IB Contract's tickerId
+        """
+        return self.parent.get_combo(self)
 
     # ---------------------------------------
     def get_positions(self, attr=None):
@@ -409,7 +436,6 @@ class Instrument(str):
         """
         return self.parent.get_pending_orders(self)
 
-
     # ---------------------------------------
     def get_active_order(self, order_type="STOP"):
         """Get artive order id for the instrument by order_type
@@ -424,7 +450,6 @@ class Instrument(str):
         """
         return self.parent.active_order(self, order_type="STOP")
 
-
     # ---------------------------------------
     def get_trades(self):
         """Get orderbook for the instrument
@@ -435,7 +460,6 @@ class Instrument(str):
         """
         return self.parent.get_trades(self)
 
-
     # ---------------------------------------
     def get_symbol(self):
         """Get symbol of this instrument
@@ -445,7 +469,6 @@ class Instrument(str):
                 instrument's symbol
         """
         return self
-
 
     # ---------------------------------------
     def modify_order(self, orderId, quantity=None, limit_price=None):
@@ -462,7 +485,6 @@ class Instrument(str):
                 the new limit price of the modified order
         """
         return self.parent.modify_order(self, orderId, quantity, limit_price)
-
 
     # ---------------------------------------
     def modify_order_group(self, orderId, entry=None, target=None, stop=None, quantity=None):
@@ -527,7 +549,6 @@ class Instrument(str):
             "has_options": None
         }
 
-
     # ---------------------------------------
     def get_max_contracts_allowed(self, overnight=True):
         """ Get maximum contracts allowed to trade
@@ -546,7 +567,7 @@ class Instrument(str):
         req_margin = self.get_margin_requirement()
         if req_margin[timeframe] is not None:
             if 'AvailableFunds' in self.parent.account:
-                return int(math.floor(self.parent.account['AvailableFunds']/req_margin[timeframe]))
+                return int(math.floor(self.parent.account['AvailableFunds'] / req_margin[timeframe]))
 
         return None
 
@@ -568,6 +589,23 @@ class Instrument(str):
         """
         ticksize = self.parent.get_contract_details(self)['m_minTick']
         return float(ticksize)
+
+    # ---------------------------------------
+    def pnl_in_range(self, min_pnl, max_pnl):
+        """ Check if instrument pnl is within given range
+
+        :Parameters:
+            min_pnl : flaot
+                minimum session pnl (in USD / IB currency)
+            max_pnl : flaot
+                maximum session pnl (in USD / IB currency)
+
+        :Retruns:
+            status : bool
+                if pnl is within range
+        """
+        portfolio = self.get_portfolio()
+        return -abs(min_pnl) < portfolio['totalPNL'] < abs(max_pnl)
 
     # ---------------------------------------
     def log_signal(self, signal):
@@ -605,6 +643,12 @@ class Instrument(str):
 
     # ---------------------------------------
     @property
+    def price(self):
+        """(Property) Shortcut to self.get_price()"""
+        return self.get_price()
+
+    # ---------------------------------------
+    @property
     def quote(self):
         """(Property) Shortcut to self.get_quote()"""
         return self.get_quote()
@@ -638,6 +682,12 @@ class Instrument(str):
     def tickerId(self):
         """(Property) Shortcut to self.get_tickerId()"""
         return self.get_tickerId()
+
+    # ---------------------------------------
+    @property
+    def combo(self):
+        """(Property) Shortcut to self.get_combo()"""
+        return self.get_combo()
 
     # ---------------------------------------
     @property
@@ -697,4 +747,3 @@ class Instrument(str):
     def ticksize(self):
         """(Property) Shortcut to self.get_ticksize()"""
         return self.get_ticksize()
-

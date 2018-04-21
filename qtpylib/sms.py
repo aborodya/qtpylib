@@ -19,30 +19,38 @@
 # limitations under the License.
 #
 
-import nexmo
-from twilio.rest import TwilioRestClient as twilioClient
+from nexmo import Client as nexmoClient
+from twilio.rest import Client as twilioClient
+import sys
 
 import configparser
 from qtpylib import (
     path, tools
 )
 
-# -------------------------------------------
+# =============================================
+# check min, python version
+if sys.version_info < (3, 4):
+    raise SystemError("QTPyLib requires Python version >= 3.4")
+# =============================================
+
+# ---------------------------------------------
 # sms service / credentials
-# -------------------------------------------
+# ---------------------------------------------
 SMS_SERVICE     = None
 SMS_CREDENTIALS = None
 
 sms_ini = configparser.ConfigParser()
-sms_ini.read(path['caller']+'/sms.ini')
+sms_ini.read(path['caller'] + '/sms.ini')
 if len(sms_ini.sections()) > 0:
-    SMS_SERVICE     = sms_ini.sections()[0].lower().strip()
+    SMS_SERVICE = sms_ini.sections()[0].lower().strip()
     SMS_CREDENTIALS = sms_ini[sms_ini.sections()[0]]
 
 
-# -------------------------------------------
+# ---------------------------------------------
+
 def send_text(msg, numbers):
-    global SMS_SERVICE, SMS_CREDENTIALS
+    global SMS_SERVICE
 
     numbers = _ready_to_send(numbers)
     if numbers == False:
@@ -61,30 +69,30 @@ def send_text(msg, numbers):
             pass
 
 
-# -------------------------------------------
+# ---------------------------------------------
+
 def _send_trade(trade, numbers, timezone="UTC"):
-    global SMS_SERVICE, SMS_CREDENTIALS
 
     numbers = _ready_to_send(numbers)
     if numbers == False:
         return
 
     # decimals to round:
-    decimals = max( [2, len(str(trade['entry_price']).split('.')[1])] )
+    decimals = max([2, len(str(trade['entry_price']).split('.')[1])])
 
     # reverse direction for exits
     if trade['action'] == "EXIT":
         trade['direction'] = "BUY" if trade['direction'] == "SELL" else "BUY"
 
     # message template
-    arrow      = "▲" if trade['direction'] == "BUY" else "▼"
-    order_type = trade['order_type'].replace("MARKET", "MKT"
-        ).replace("LIMIT", "LMT")
+    arrow = "▲" if trade['direction'] == "BUY" else "▼"
+    order_type = trade['order_type'].replace(
+        "MARKET", "MKT").replace("LIMIT", "LMT")
 
     msg = ""
 
-    trade['direction'] = trade['direction'].replace("BUY", "BOT"
-        ).replace("SELL", "SLD")
+    trade['direction'] = trade['direction'].replace(
+        "BUY", "BOT").replace("SELL", "SLD")
 
     qty = ""
     if abs(trade['quantity']) > 1:
@@ -97,32 +105,32 @@ def _send_trade(trade, numbers, timezone="UTC"):
         try:
             trade['entry_time'] = tools.datetime_to_timezone(
                 trade['entry_time'], timezone)
-            msg += trade['entry_time'].strftime('%H:%M:%S%z') +"\n"
+            msg += trade['entry_time'].strftime('%H:%M:%S%z') + "\n"
         except:
             pass
 
-        msg += trade['direction'] +" "+ arrow  +" "+ qty +" "+ trade['symbol']
-        msg += " @ "+ str(round(trade['entry_price'], decimals))
-        msg += " "+ order_type +"\n"
-        msg += "TP "+ str(target) +" / SL "+ str(stop) +"\n"
+        msg += trade['direction'] + " " + arrow + " " + qty + " " + trade['symbol']
+        msg += " @ " + str(round(trade['entry_price'], decimals))
+        msg += " " + order_type + "\n"
+        msg += "TP " + str(target) + " / SL " + str(stop) + "\n"
 
     elif trade['action'] == "EXIT":
         exit_type = trade['exit_reason'].replace("TARGET", "TGT"
-            ).replace("STOP", "STP").replace("SIGNAL", order_type)
+                                                 ).replace("STOP", "STP").replace("SIGNAL", order_type)
         pnl_char = "+" if trade['realized_pnl'] > 0 else ""
 
         try:
             trade['exit_time'] = tools.datetime_to_timezone(
                 trade['entry_time'], timezone)
-            msg += trade['exit_time'].strftime('%H:%M:%S%z') +"\n"
+            msg += trade['exit_time'].strftime('%H:%M:%S%z') + "\n"
         except:
             pass
 
-        msg += trade['direction'] +" "+ arrow  +" "+ qty +" "+ trade['symbol']
-        msg += " @ "+ str(round(trade['exit_price'], decimals))
-        msg += " "+ exit_type +"\n"
-        msg += "PL "+ pnl_char + str(round(trade['realized_pnl'], decimals))
-        msg += " ("+ trade['duration'] +")\n"
+        msg += trade['direction'] + " " + arrow + " " + qty + " " + trade['symbol']
+        msg += " @ " + str(round(trade['exit_price'], decimals))
+        msg += " " + exit_type + "\n"
+        msg += "PL " + pnl_char + str(round(trade['realized_pnl'], decimals))
+        msg += " (" + trade['duration'] + ")\n"
 
     # if UTC remove timezone info
     msg = msg.replace("+0000", " UTC")
@@ -131,9 +139,10 @@ def _send_trade(trade, numbers, timezone="UTC"):
     send_text(msg, numbers)
 
 
-# -------------------------------------------
+# ---------------------------------------------
+
 def _ready_to_send(numbers):
-    global SMS_SERVICE, SMS_CREDENTIALS
+    global SMS_SERVICE
 
     # get credentials
     if SMS_SERVICE is None:
@@ -149,9 +158,10 @@ def _ready_to_send(numbers):
     return numbers
 
 
-# -------------------------------------------
+# ---------------------------------------------
+
 def _send_nexmo(msg, numbers):
-    global SMS_SERVICE, SMS_CREDENTIALS
+    global SMS_CREDENTIALS
 
     nexmo_key = SMS_CREDENTIALS['key'].strip().split(
         ' ')[0] if "key" in SMS_CREDENTIALS else None
@@ -160,7 +170,7 @@ def _send_nexmo(msg, numbers):
         ' ')[0] if "secret" in SMS_CREDENTIALS else None
 
     nexmo_from = SMS_CREDENTIALS['from'].strip().split(
-        ' ')[0] if "from" in SMS_CREDENTIALS else "QTPy"
+        ' ')[0] if "from" in SMS_CREDENTIALS else "QTPyLib"
 
     if nexmo_key is None or nexmo_secret is None or nexmo_from is None:
         return
@@ -170,10 +180,10 @@ def _send_nexmo(msg, numbers):
 
     # send message
     sent = 0
-    smsClient = nexmo.Client(key=nexmo_key, secret=nexmo_secret)
+    smsClient = nexmoClient(key=nexmo_key, secret=nexmo_secret)
     for number in numbers:
         if "+" not in number:
-            number = "+"+str(number)
+            number = "+" + str(number)
         msg['to'] = number
         response = smsClient.send_message(msg)
         if response['messages'][0]['status'] == '0':
@@ -182,9 +192,10 @@ def _send_nexmo(msg, numbers):
     return len(numbers) == sent
 
 
-# -------------------------------------------
+# ---------------------------------------------
+
 def _send_twilio(msg, numbers):
-    global SMS_SERVICE, SMS_CREDENTIALS
+    global SMS_CREDENTIALS
 
     twilio_sid = SMS_CREDENTIALS['sid'].strip().split(
         ' ')[0] if "sid" in SMS_CREDENTIALS else None
@@ -193,7 +204,7 @@ def _send_twilio(msg, numbers):
         ' ')[0] if "token" in SMS_CREDENTIALS else None
 
     twilio_from = SMS_CREDENTIALS['from'].strip().split(
-        ' ')[0] if "from" in SMS_CREDENTIALS else "QTPy"
+        ' ')[0] if "from" in SMS_CREDENTIALS else "QTPyLib"
 
     if twilio_sid is None or twilio_token is None or twilio_from is None:
         return
@@ -203,11 +214,10 @@ def _send_twilio(msg, numbers):
     smsClient = twilioClient(twilio_sid, twilio_token)
     for number in numbers:
         if "+" not in number:
-            number = "+"+str(number)
+            number = "+" + str(number)
         response = smsClient.messages.create(
             body=msg, to=number, from_=twilio_from)
         if response.sid != '':
             sent += 1
 
     return len(numbers) == sent
-

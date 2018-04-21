@@ -1,11 +1,11 @@
 QTPyLib, Pythonic Algorithmic Trading
 =====================================
 
-.. image:: https://img.shields.io/pypi/pyversions/qtpylib.svg?maxAge=2592000
+.. image:: https://img.shields.io/pypi/pyversions/qtpylib.svg?maxAge=60
     :target: https://pypi.python.org/pypi/qtpylib
     :alt: Python version
 
-.. image:: https://img.shields.io/travis/ranaroussi/qtpylib/master.svg?
+.. image:: https://img.shields.io/travis/ranaroussi/qtpylib/master.svg?maxAge=1
     :target: https://travis-ci.org/ranaroussi/qtpylib
     :alt: Travis-CI build status
 
@@ -13,7 +13,7 @@ QTPyLib, Pythonic Algorithmic Trading
     :target: https://pypi.python.org/pypi/qtpylib
     :alt: PyPi version
 
-.. image:: https://img.shields.io/pypi/status/qtpylib.svg?maxAge=2592000
+.. image:: https://img.shields.io/pypi/status/qtpylib.svg?maxAge=60
     :target: https://pypi.python.org/pypi/qtpylib
     :alt: PyPi status
 
@@ -202,11 +202,11 @@ While the Blotter running in the background, write the dashboard:
     # dashboard.py
     from qtpylib.reports import Reports
 
-    class Dahboard(Reports):
+    class Dashboard(Reports):
         pass # we just need the name
 
     if __name__ == "__main__":
-        dashboard = Dahboard(port = 5000)
+        dashboard = Dashboard(port = 5000)
         dashboard.run()
 
 
@@ -255,7 +255,7 @@ Requirements
 * `Requests <https://github.com/kennethreitz/requests>`_ (tested to with with >=2.10.0)
 * `Beautiful Soup <https://pypi.python.org/pypi/beautifulsoup4>`_ (tested to work with >=4.3.2)
 * `IbPy2 <https://github.com/blampe/IbPy>`_ (tested to work with >=0.8.0)
-* `ezIBpy <https://github.com/ranaroussi/ezibpy>`_ (IbPy wrapper, tested to with with >=1.12.44)
+* `ezIBpy <https://github.com/ranaroussi/ezibpy>`_ (IbPy wrapper, tested to with with >=1.12.56)
 * Latest Interactive Brokers’ `TWS <https://www.interactivebrokers.com/en/index.php?f=15875>`_ or `IB Gateway <https://www.interactivebrokers.com/en/index.php?f=16457>`_ installed and running on the machine
 * `MySQL Server <https://www.mysql.com/>`_ installed and running with a database for QTPyLib
 

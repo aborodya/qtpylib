@@ -1,7 +1,7 @@
 beautifulsoup4>=4.3.2
 python-dateutil>=2.5.3
 ibpy2>=0.8.0
-ezibpy>=1.12.44
+ezibpy>=1.12.56
 flask>=0.11.1
 nexmo>=1.2.0
 numpy>=1.11.1
@@ -9,5 +9,5 @@ pandas>=0.18.1
 pymysql>=0.7.6
 pytz>=2016.6.1
 requests>=2.10.0
-twilio>=5.4.0
+twilio>=6.0.0
 pyzmq>=15.2.1
