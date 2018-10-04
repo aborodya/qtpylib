@@ -6,11 +6,11 @@
 #
 # Copyright 2016-2018 Ran Aroussi
 #
-# Licensed under the GNU Lesser General Public License, v3.0 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -83,11 +83,24 @@ class Broker():
         # initilize class logger
         self.log_broker = logging.getLogger(__name__)
 
-        # default params (overrided in algo)
-        self.timezone = "UTC"
-        self.last_price = {}
-        self.tick_window = 1000
-        self.bar_window = 100
+        # -----------------------------------
+        # assign default vals if not propogated from algo
+        if not hasattr(self, 'timezone'):
+            self.timezone = "UTC"
+        if not hasattr(self, 'tick_window'):
+            self.tick_window = 1000
+        if not hasattr(self, 'bar_window'):
+            self.bar_window = 100
+        if not hasattr(self, 'last_price'):
+            self.last_price = {}
+        if not hasattr(self, 'backtest'):
+            self.backtest = False
+        if not hasattr(self, 'sms_numbers'):
+            self.sms_numbers = []
+        if not hasattr(self, 'trade_log_dir'):
+            self.trade_log_dir = None
+        if not hasattr(self, 'blotter_name'):
+            self.blotter_name = None
 
         # -----------------------------------
         # connect to IB
@@ -97,7 +110,22 @@ class Broker():
 
         self.ibConn = ezibpy.ezIBpy()
         self.ibConn.ibCallback = self.ibCallback
-        self.ibConnect()
+        # self.ibConnect()
+
+        connection_tries = 0
+        while not self.ibConn.connected:
+            self.ibConn.connect(clientId=self.ibclient,
+                                port=self.ibport, host=self.ibserver)
+            time.sleep(1)
+            if not self.ibConn.connected:
+                # print('*', end="", flush=True)
+                connection_tries += 1
+                if connection_tries > 10:
+                    self.log_broker.info(
+                        "Cannot connect to Interactive Brokers...")
+                    sys.exit(0)
+
+        self.log_broker.info("Connection established...")
 
         # -----------------------------------
         # create contracts
@@ -111,7 +139,7 @@ class Broker():
                 contractString = self.ibConn.contractString(instrument)
                 instrument_tuples_dict[contractString] = instrument
                 self.ibConn.createContract(instrument)
-            except:
+            except Exception as e:
                 pass
 
         self.instruments = instrument_tuples_dict
@@ -144,20 +172,6 @@ class Broker():
         self.dbconn = None
 
         # -----------------------------------
-        # assign default vals if not propogated from algo
-        if not hasattr(self, 'backtest'):
-            self.backtest = False
-
-        if not hasattr(self, 'sms_numbers'):
-            self.sms_numbers = []
-
-        if not hasattr(self, 'trade_log_dir'):
-            self.trade_log_dir = None
-
-        if not hasattr(self, 'blotter_name'):
-            self.blotter_name = None
-
-        # -----------------------------------
         # load blotter settings
         self.blotter_args = load_blotter_args(
             self.blotter_name, logger=self.log_broker)
@@ -174,7 +188,6 @@ class Broker():
                 autocommit=True
             )
             self.dbcurr = self.dbconn.cursor()
-
         # -----------------------------------
         # do stuff on exit
         atexit.register(self._on_exit)
@@ -237,7 +250,7 @@ class Broker():
         try:
             self.dbcurr.close()
             self.dbconn.close()
-        except:
+        except Exception as e:
             pass
 
     # ---------------------------------------
@@ -279,16 +292,16 @@ class Broker():
                     symbol = self.orders.recent[msg.orderId]['symbol']
                     try:
                         del self.orders.pending_ttls[msg.orderId]
-                    except:
+                    except Exception as e:
                         pass
                     try:
                         del self.orders.recent[msg.orderId]
-                    except:
+                    except Exception as e:
                         pass
                     try:
                         if self.orders.pending[symbol]['orderId'] == msg.orderId:
                             del self.orders.pending[symbol]
-                    except:
+                    except Exception as e:
                         pass
                 return
 
@@ -303,17 +316,18 @@ class Broker():
             try:
                 try:
                     quantity = self.orders.history[symbol][orderId]['quantity']
-                except:
+                except Exception as e:
                     quantity = self.orders.history[symbol][order['parentId']]['quantity']
                     # ^^ for child orders auto-created by ezibpy
-            except:
+            except Exception as e:
                 quantity = 1
 
             # update pending order to the time actually submitted
             if order["status"] in ["OPENED", "SUBMITTED"]:
                 if orderId in self.orders.pending_ttls:
                     self._update_pending_order(symbol, orderId,
-                                               self.orders.pending_ttls[orderId], quantity)
+                                               self.orders.pending_ttls[orderId],
+                                               quantity)
 
             elif order["status"] == "FILLED":
                 self._update_order_history(
@@ -418,7 +432,7 @@ class Broker():
                             (days, hours, minutes, seconds))
                 self.active_trades[tradeId]['duration'] = duration.replace(
                     "0d ", "").replace("0h ", "").replace("0m ", "")
-            except:
+            except Exception as e:
                 pass
 
             trade = self.active_trades[tradeId]
@@ -483,13 +497,13 @@ class Broker():
             try:
                 trade['entry_time'] = trade['entry_time'].strftime(
                     "%Y-%m-%d %H:%M:%S.%f")
-            except:
+            except Exception as e:
                 pass
 
             try:
                 trade['exit_time'] = trade['exit_time'].strftime(
                     "%Y-%m-%d %H:%M:%S.%f")
-            except:
+            except Exception as e:
                 pass
 
             # all strings
@@ -511,7 +525,7 @@ class Broker():
             # commit
             try:
                 self.dbconn.commit()
-            except:
+            except Exception as e:
                 pass
 
         if self.trade_log_dir:
@@ -531,7 +545,7 @@ class Broker():
 
             if os.path.exists(trade_log_path):
                 trades = pd.read_csv(trade_log_path, header=0)
-                trades = trades.append(trade_df, ignore_index=True)
+                trades = trades.append(trade_df, ignore_index=True, sort=True)
                 trades.drop_duplicates(['entry_time', 'symbol', 'strategy'],
                                        keep="last", inplace=True)
                 trades.to_csv(trade_log_path, header=True, index=False)
@@ -560,6 +574,14 @@ class Broker():
                       limit_price=0, expiry=0, orderId=0, target=0, initial_stop=0,
                       trail_stop_at=0, trail_stop_by=0, stop_limit=False, **kwargs):
 
+        # fix prices to comply with contract's min-tick
+        ticksize = self.get_contract_details(symbol)['m_minTick']
+        limit_price = tools.round_to_fraction(limit_price, ticksize)
+        target = tools.round_to_fraction(target, ticksize)
+        initial_stop = tools.round_to_fraction(initial_stop, ticksize)
+        trail_stop_at = tools.round_to_fraction(trail_stop_at, ticksize)
+        trail_stop_by = tools.round_to_fraction(trail_stop_by, ticksize)
+
         self.log_broker.debug('CREATE ORDER: %s %4d %s %s', direction,
                               quantity, symbol, dict(locals(), **kwargs))
 
@@ -587,10 +609,9 @@ class Broker():
         # don't submit order if a pending one is waiting
         if symbol in self.orders.pending:
             self.log_broker.warning(
-                'Not submitting %s order, orders pending: %s', symbol, self.orders.pending)
+                'Not submitting %s order, orders pending: %s', symbol,
+                self.orders.pending)
             return
-
-        # @TODO - decide on quantity here
 
         # continue...
         order_quantity = abs(quantity)
@@ -627,7 +648,7 @@ class Broker():
             orderId = order["entryOrderId"]
 
             # triggered trailing stop?
-            if (trail_stop_by != None) & (trail_stop_at != None):
+            if trail_stop_by != 0 and trail_stop_at != 0:
                 self.ibConn.createTriggerableTrailingStop(symbol, -order_quantity,
                                                           triggerPrice=trail_stop_at,
                                                           trailPercent=trail_stop_by,
@@ -658,18 +679,21 @@ class Broker():
         self.orders.recent[orderId] = self._get_locals(locals())
         self.orders.recent[orderId]['targetOrderId'] = 0
         self.orders.recent[orderId]['stopOrderId'] = 0
+
         if bracket:
             self.orders.recent[orderId]['targetOrderId'] = order["targetOrderId"]
             self.orders.recent[orderId]['stopOrderId'] = order["stopOrderId"]
+
         # append market price at the time of order
         try:
             self.orders.recent[orderId]['price'] = self.last_price[symbol]
-        except:
+        except Exception as e:
             self.orders.recent[orderId]['price'] = 0
 
         # add orderId / ttl to (auto-adds to history)
         expiry = expiry * 1000 if expiry > 0 else 60000  # 1min
         self._update_pending_order(symbol, orderId, expiry, order_quantity)
+        time.sleep(0.1)
 
     # ---------------------------------------
     def _cancel_order(self, orderId):
@@ -869,7 +893,26 @@ class Broker():
     def get_positions(self, symbol):
         symbol = self.get_symbol(symbol)
 
-        if symbol in self.ibConn.positions:
+        if self.backtest:
+            position = 0
+            avgCost = 0.0
+
+            if self.datastore.recorded is not None:
+                data = self.datastore.recorded
+                col = symbol.upper() + '_POSITION'
+                position = data[col].values[-1]
+                if position != 0:
+                    pos = data[col].diff()
+                    avgCost = data[data.index.isin(pos[pos != 0][-1:].index)
+                                   ][symbol.upper() + '_OPEN'].values[-1]
+            return {
+                    "symbol": symbol,
+                    "position": position,
+                    "avgCost":  avgCost,
+                    "account":  "Backtest"
+                }
+
+        elif symbol in self.ibConn.positions:
             return self.ibConn.positions[symbol]
 
         return {
@@ -927,7 +970,7 @@ class Broker():
             active_trades.loc[:, 'closed'] = False
 
         # combine dataframes
-        df = pd.concat([trades, active_trades]).reset_index()
+        df = pd.concat([trades, active_trades], sort=True).reset_index()
 
         # set last price
         if not df.empty:
@@ -943,7 +986,7 @@ class Broker():
 
             try:
                 df.loc[:, 'last'] = self.last_price[symbol]
-            except:
+            except Exception as e:
                 df.loc[:, 'last'] = 0
 
             # calc unrealized pnl
