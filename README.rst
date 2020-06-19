@@ -21,9 +21,9 @@ QTPyLib, Pythonic Algorithmic Trading
     :target: http://qtpylib.io/docs/latest/?badge=latest
     :alt: Documentation Status
 
-.. image:: https://img.shields.io/badge/Patreon-accepting-ff69b4.svg?style=flat
-    :target: https://www.patreon.com/aroussi
-    :alt: Patreon Status
+.. image:: https://img.shields.io/badge/Chat-Discord-%237289d6.svg?style=flat&logo=discord&maxAge=60
+    :target: https://discord.gg/7wEzsuV
+    :alt: Chat on Discord
 
 .. image:: https://img.shields.io/github/stars/ranaroussi/qtpylib.svg?style=social&label=Star&maxAge=60
     :target: https://github.com/ranaroussi/qtpylib
@@ -47,6 +47,11 @@ trading logic itself and ignore everything else.
 `Full Documentation » <http://www.qtpylib.io/>`_
 
 `Changelog » <./CHANGELOG.rst>`_
+
+-----
+
+**Read about the future of QTPyLib here:**
+https://aroussi.com/post/the-future-of-qtpylib
 
 -----
 
@@ -146,8 +151,8 @@ While the Blotter running in the background, write and execute your algorithm:
                 return
 
             # compute averages using internal rolling_mean
-            bars['short_ma'] = bars['close'].rolling_mean(window=10)
-            bars['long_ma']  = bars['close'].rolling_mean(window=20)
+            bars['short_ma'] = bars['close'].rolling(window=10).mean()
+            bars['long_ma']  = bars['close'].rolling(window=20).mean()
 
             # get current position data
             positions = instrument.get_positions()
@@ -260,7 +265,7 @@ Requirements
 * `Flask <http://flask.pocoo.org>`_ for the Dashboard (tested to work with >=0.11)
 * `Requests <https://github.com/kennethreitz/requests>`_ (tested to work with >=2.10.0)
 * `IbPy2 <https://github.com/blampe/IbPy>`_ (tested to work with >=0.8.0)
-* `ezIBpy <https://github.com/ranaroussi/ezibpy>`_ (IbPy wrapper, tested to work with >=1.12.63)
+* `ezIBpy <https://github.com/ranaroussi/ezibpy>`_ (IbPy wrapper, tested to work with >=1.12.66)
 * Latest Interactive Brokers’ `TWS <https://www.interactivebrokers.com/en/index.php?f=15875>`_ or `IB Gateway <https://www.interactivebrokers.com/en/index.php?f=16457>`_ installed and running on the machine
 * `MySQL Server <https://www.mysql.com/>`_ installed and running with a database for QTPyLib
 

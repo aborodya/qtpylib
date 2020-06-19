@@ -1,6 +1,31 @@
 Release Notes
 =============
 
+*November 10, 2019*
+
+1.5.84
+-----------
+- Hot fix by @aspenforest - fixed pip installer
+
+*February 13, 2019*
+
+1.5.83
+-----------
+- Fix numpy transpose error in stoch indicator
+- Fix reports' ``KeyError`` under Python 3.7+ when not using ``--nopass``
+- Fix reports' static file error with incorrect path
+
+*January 11, 2019*
+
+1.5.82
+-----------
+- Set strategy's logging level to ``INFO``
+- Suppress SQL messages when using ``--dbskip``
+- Added option to set trailing stop offset type by specifiying ``trail_stop_type``. Options are: **amount** and **percent** (default)
+- Defaults to single threaded mode unless otherwise specified
+- Requires ezIBpy >= 1.12.66
+- Lots of bugfixes, and code improvements
+
 *September 17, 2018*
 
 1.5.81
